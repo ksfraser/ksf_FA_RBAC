@@ -79,6 +79,105 @@ class hooks_ksf_FA_RBAC extends hooks {
         }
     }
 
+    // =======================================================================
+    // KSF Query Hook System — Advertised values
+    //
+    // Modules call hook_invoke_first('ksf_get_value', 'rbac.<key>') to read
+    // RBAC configuration without a direct dependency on this module.
+    // =======================================================================
+
+    /**
+     * Respond to a single-value query from another module.
+     *
+     * @param string $key   Namespaced key (e.g. 'rbac.hooks_version')
+     * @param array  $opts  Reserved
+     * @return mixed|null   Value if recognised, null if not mine
+     *
+     * @since 1.0.0
+     */
+    function ksf_get_value($key, $opts = array())
+    {
+        $values = $this->_advertisedValues();
+
+        return array_key_exists($key, $values) ? $values[$key] : null;
+    }
+
+    /**
+     * Respond to a multi-value query from another module.
+     *
+     * @param array $keys  List of requested keys (empty = return all)
+     * @param array $opts  Reserved
+     * @return array       Matching key => value pairs
+     *
+     * @since 1.0.0
+     */
+    function ksf_get_values($keys = array(), $opts = array())
+    {
+        $values = $this->_advertisedValues();
+
+        if (empty($keys)) {
+            return $values;
+        }
+
+        return array_intersect_key($values, array_flip($keys));
+    }
+
+    /**
+     * Return all values this module advertises via the query hook system.
+     *
+     * @return array<string, mixed>
+     *
+     * @since 1.0.0
+     */
+    private function _advertisedValues()
+    {
+        return array(
+            // Metadata
+            'rbac.hooks_version'            => '2.0',
+            'rbac.module_version'           => $this->version,
+
+            // Provisioning status (lazy — only defined once the auth hook fires)
+            'rbac.person_registry_active'   => defined('TB_PREF')
+                ? $this->_checkPersonRegistryTable()
+                : false,
+
+            // ContactTypeRegistry info for calendar viewable_by filter
+            'rbac.contact_type_registered'  => array(
+                'fa_user'     => 'user',
+                'crm_contact' => 'crm_contact',
+            ),
+
+            // Supported RBAC features (for capability negotiation)
+            'rbac.features'                 => array(
+                'projection_ranking'    => true,
+                'per_type_elevation'    => true,
+                'double_gated_restore'  => true,
+                'team_approver_list'    => true,
+                'recursive_insert'      => true,
+            ),
+        );
+    }
+
+    /**
+     * Quick check whether the person registry tables have been provisioned.
+     *
+     * @return bool
+     *
+     * @since 1.0.0
+     */
+    private function _checkPersonRegistryTable()
+    {
+        global $db;
+
+        if (!$db) {
+            return false;
+        }
+
+        $table = TB_PREF . 'crm_categories';
+        $result = db_query("SHOW TABLES LIKE '" . $table . "'", __FUNCTION__);
+        return db_num_rows($result) > 0;
+    }
+
     /**
      * Ensure Composer dependencies are installed.
      *
