@@ -10,7 +10,18 @@
 
 define('SS_ksf_FA_RBAC', 126 << 8);
 
+// ---------------------------------------------------------------------------
+// Ensure Composer autoloader is loaded before the class definition so that
+// trait dependencies (HookQueryProviderTrait) are available at class-load time.
+// ---------------------------------------------------------------------------
+$rbacAutoload = dirname(__FILE__) . '/vendor/autoload.php';
+if (file_exists($rbacAutoload)) {
+    require_once $rbacAutoload;
+}
+
 class hooks_ksf_FA_RBAC extends hooks {
+    use \Ksfraser\Traits\HookQueryProviderTrait;
+
     var $module_name = 'ksf_FA_RBAC';
     var $version = '1.0.0';
 
@@ -85,43 +96,10 @@ class hooks_ksf_FA_RBAC extends hooks {
     // Modules call hook_invoke_first('ksf_get_value', $key) to read
     // RBAC configuration without a direct dependency on this module.
     // NOTE: Always pass a variable — FA declares &$data (by reference).
+    //
+    // ksf_get_value(), ksf_get_values(), ksf_set_value() are provided by
+    // HookQueryProviderTrait (Ksfraser\Traits).
     // =======================================================================
-
-    /**
-     * Respond to a single-value query from another module.
-     *
-     * @param mixed $key   Namespaced key (e.g. 'rbac.hooks_version')
-     * @param mixed $opts  Reserved
-     * @return mixed|null  Value if recognised, null if not mine
-     *
-     * @since 1.0.0
-     */
-    function ksf_get_value(&$key, $opts = null)
-    {
-        $values = $this->_advertisedValues();
-
-        return array_key_exists($key, $values) ? $values[$key] : null;
-    }
-
-    /**
-     * Respond to a multi-value query from another module.
-     *
-     * @param mixed $keys  List of requested keys (null = return all)
-     * @param mixed $opts  Reserved
-     * @return array       Matching key => value pairs
-     *
-     * @since 1.0.0
-     */
-    function ksf_get_values(&$keys = null, $opts = null)
-    {
-        $values = $this->_advertisedValues();
-
-        if (empty($keys)) {
-            return $values;
-        }
-
-        return array_intersect_key($values, array_flip($keys));
-    }
 
     /**
      * Return all values this module advertises via the query hook system.
@@ -130,7 +108,7 @@ class hooks_ksf_FA_RBAC extends hooks {
      *
      * @since 1.0.0
      */
-    private function _advertisedValues()
+    protected function _getAdvertisedValues(): array
     {
         return array(
             // Metadata
