@@ -33,11 +33,13 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../../../ksf_RBAC"
+            "url": "../../../ksf_RBAC",
+            "canonical": false
         },
         {
             "type": "path",
-            "url": "../../../Traits"
+            "url": "../../../Traits",
+            "canonical": false
         }
     ]
 }
