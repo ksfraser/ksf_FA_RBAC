@@ -82,20 +82,21 @@ class hooks_ksf_FA_RBAC extends hooks {
     // =======================================================================
     // KSF Query Hook System — Advertised values
     //
-    // Modules call hook_invoke_first('ksf_get_value', 'rbac.<key>') to read
+    // Modules call hook_invoke_first('ksf_get_value', $key) to read
     // RBAC configuration without a direct dependency on this module.
+    // NOTE: Always pass a variable — FA declares &$data (by reference).
     // =======================================================================
 
     /**
      * Respond to a single-value query from another module.
      *
-     * @param string $key   Namespaced key (e.g. 'rbac.hooks_version')
-     * @param array  $opts  Reserved
-     * @return mixed|null   Value if recognised, null if not mine
+     * @param mixed $key   Namespaced key (e.g. 'rbac.hooks_version')
+     * @param mixed $opts  Reserved
+     * @return mixed|null  Value if recognised, null if not mine
      *
      * @since 1.0.0
      */
-    function ksf_get_value($key, $opts = array())
+    function ksf_get_value(&$key, $opts = null)
     {
         $values = $this->_advertisedValues();
 
@@ -105,13 +106,13 @@ class hooks_ksf_FA_RBAC extends hooks {
     /**
      * Respond to a multi-value query from another module.
      *
-     * @param array $keys  List of requested keys (empty = return all)
-     * @param array $opts  Reserved
+     * @param mixed $keys  List of requested keys (null = return all)
+     * @param mixed $opts  Reserved
      * @return array       Matching key => value pairs
      *
      * @since 1.0.0
      */
-    function ksf_get_values($keys = array(), $opts = array())
+    function ksf_get_values(&$keys = null, $opts = null)
     {
         $values = $this->_advertisedValues();
 
