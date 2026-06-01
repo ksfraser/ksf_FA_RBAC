@@ -4,7 +4,7 @@
     "type": "fa-module",
     "license": "GPL-3.0",
     "require": {
-        "php": ">=7.3",
+        "php": ">=7.4",
         "ksfraser/rbac": "*",
         "ksfraser/exceptions": "*",
         "ksfraser/traits": "^1.2",
@@ -27,7 +27,7 @@
     "prefer-stable": true,
     "config": {
         "platform": {
-            "php": "7.3.33"
+            "php": "7.4.33"
         }
     },
     "repositories": [
