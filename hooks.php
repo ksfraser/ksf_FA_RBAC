@@ -152,6 +152,102 @@ class hooks_ksf_FA_RBAC extends hooks {
         );
     }
 
+    // =======================================================================
+    // AUTHORIZATION HOOK — called by other modules via hook_invoke_first()
+    //
+    // Other modules call:
+    //   $data = ['user_id' => 5, 'action' => 'create', 'module' => 'customer',
+    //            'resource_type' => 'customer', 'resource_id' => null];
+    //   $allowed = hook_invoke_first('authorize', $data);
+    //   if ($allowed === false) { /* deny */ }
+    //
+    // Returns:
+    //   true  — allowed
+    //   false — denied
+    //   null  — no opinion (module not fully loaded, or check not applicable)
+    // =======================================================================
+
+    /**
+     * Authorize a user action against the RBAC system.
+     *
+     * Checks whether the given user has the required capability for a resource.
+     * For create actions (no resource_id), membership in at least one team
+     * is sufficient. For view/edit/delete actions, the specific record access
+     * is checked via FaRecordAccessRepository::findForRecord().
+     *
+     * @param array &$data {
+     *     @var int    $user_id       FA user ID
+     *     @var string $action        'create' | 'view' | 'edit' | 'delete'
+     *     @var string $module        Module name (e.g. 'customer', 'payment')
+     *     @var string $resource_type Resource type (e.g. 'customer', 'payment')
+     *     @var int    $resource_id   Optional record ID for view/edit/delete
+     * }
+     * @param array|null $opts Reserved
+     * @return bool|null True=allowed, False=denied, Null=no opinion
+     *
+     * @since 1.1.0
+     */
+    function authorize(&$data, $opts = null)
+    {
+        $userId      = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+        $action      = isset($data['action']) ? (string) $data['action'] : '';
+        $module      = isset($data['module']) ? (string) $data['module'] : '';
+        $resType     = isset($data['resource_type']) ? (string) $data['resource_type'] : '';
+        $resId       = isset($data['resource_id']) ? (int) $data['resource_id'] : null;
+
+        if ($userId <= 0 || $action === '') {
+            return null;
+        }
+
+        try {
+            $this->_ensureComposerDependencies();
+
+            if (!class_exists('Ksfraser\FA\Rbac\Adapter\FaDbAdapter')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Contract/DbAdapterInterface.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaTeamRepository.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaRecordAccessRepository.php';
+            }
+
+            $dbAdapter = new \Ksfraser\FA\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $teamRepo  = new \Ksfraser\FA\Rbac\Repository\FaTeamRepository($dbAdapter);
+
+            $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);
+
+            if (empty($teamIds)) {
+                return false;
+            }
+
+            // Create actions — user belongs to at least one team
+            if ($action === 'create') {
+                return true;
+            }
+
+            // Record-level actions (view, edit, delete) — check specific record
+            if ($resId !== null && $module !== '' && $resType !== '') {
+                $accessRepo = new \Ksfraser\FA\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
+                $records    = $accessRepo->findForRecord($module, $resType, $resId, $teamIds);
+
+                $capField = 'can_' . $action; // e.g. 'can_view', 'can_edit', 'can_delete'
+
+                foreach ($records as $access) {
+                    $caps = $access->getCapabilities()->toArray();
+                    if (!empty($caps[$capField])) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            // Default — allow (user has teams, no specific record constraint)
+            return true;
+        } catch (\Exception $e) {
+            error_log('KSF RBAC: authorize check failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     /**
      * Quick check whether the person registry tables have been provisioned.
      *
