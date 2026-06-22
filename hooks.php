@@ -19,11 +19,31 @@ if (file_exists($rbacAutoload)) {
     require_once $rbacAutoload;
 }
 
+// Shared utility: ensure Composer dependencies are installed (runs once).
+$composerDepsPath = dirname(__DIR__) . '/ksf_FA_Common/src/Utils/ComposerDependencies.php';
+if (file_exists($composerDepsPath)) {
+    require_once $composerDepsPath;
+    \KsfCommon\Utils\ComposerDependencies::ensure(__DIR__);
+}
+
 class hooks_ksf_FA_RBAC extends hooks {
     use \Ksfraser\Traits\HookQueryProviderTrait;
 
     var $module_name = 'ksf_FA_RBAC';
     var $version = '1.0.0';
+
+    /**
+     * Constructor — performs lazy user provisioning on page access.
+     *
+     * The hooks class is instantiated on every request after the session is
+     * established.  If the current user has not yet been provisioned into the
+     * person registry and RBAC system, this creates the necessary rows.
+     *
+     * @since 1.0.0
+     */
+    function __construct() {
+        $this->provisionCurrentUser();
+    }
 
     /**
      * Activate the RBAC module: create tables and seed initial data.
@@ -44,31 +64,27 @@ class hooks_ksf_FA_RBAC extends hooks {
     }
 
     /**
-     * Lazy-provision a user into the person registry and RBAC system.
+     * Lazy-provision the current user into the person registry and RBAC system.
      *
-     * Called from the FA `authenticate` hook (after successful login).
-     * Creates or updates the crm_persons/crm_contacts rows and initializes
-     * the {userId}_individual team if not already provisioned.
+     * Reads from the FA session after login.  Creates or updates the
+     * crm_persons/crm_contacts rows and initializes the {userId}_individual
+     * team if not already provisioned.  Idempotent — re-running is a no-op.
      *
-     * @param array $data User data passed by hook_invoke_all
-     * @param array $opts Reserved
      * @return void
      *
      * @since 1.0.0
      */
-    function authenticate(&$data, $opts = array()) {
-        global $db;
-
-        // Extract user details from the session or data array.
-        $user = isset($data['user']) ? $data['user'] : null;
-        if (!$user || !isset($user->user_id, $user->login, $user->name, $user->email)) {
+    private function provisionCurrentUser() {
+        if (!isset($_SESSION['wa_current_user']->user)) {
             return;
         }
 
-        // Provision the user.
-        try {
-            $this->_ensureComposerDependencies();
+        $user = $_SESSION['wa_current_user'];
+        if (!isset($user->user_id, $user->login, $user->name, $user->email)) {
+            return;
+        }
 
+        try {
             if (!class_exists('Ksfraser\FA\Rbac\Provisioner\UserProvisioner')) {
                 require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Provisioner/UserProvisioner.php';
                 require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
@@ -85,7 +101,6 @@ class hooks_ksf_FA_RBAC extends hooks {
                 (string) $user->email
             );
         } catch (\Exception $e) {
-            // Log but do not block login on provisioning failure.
             error_log('RBAC user provisioning failed: ' . $e->getMessage());
         }
     }
@@ -137,6 +152,102 @@ class hooks_ksf_FA_RBAC extends hooks {
         );
     }
 
+    // =======================================================================
+    // AUTHORIZATION HOOK — called by other modules via hook_invoke_first()
+    //
+    // Other modules call:
+    //   $data = ['user_id' => 5, 'action' => 'create', 'module' => 'customer',
+    //            'resource_type' => 'customer', 'resource_id' => null];
+    //   $allowed = hook_invoke_first('authorize', $data);
+    //   if ($allowed === false) { /* deny */ }
+    //
+    // Returns:
+    //   true  — allowed
+    //   false — denied
+    //   null  — no opinion (module not fully loaded, or check not applicable)
+    // =======================================================================
+
+    /**
+     * Authorize a user action against the RBAC system.
+     *
+     * Checks whether the given user has the required capability for a resource.
+     * For create actions (no resource_id), membership in at least one team
+     * is sufficient. For view/edit/delete actions, the specific record access
+     * is checked via FaRecordAccessRepository::findForRecord().
+     *
+     * @param array &$data {
+     *     @var int    $user_id       FA user ID
+     *     @var string $action        'create' | 'view' | 'edit' | 'delete'
+     *     @var string $module        Module name (e.g. 'customer', 'payment')
+     *     @var string $resource_type Resource type (e.g. 'customer', 'payment')
+     *     @var int    $resource_id   Optional record ID for view/edit/delete
+     * }
+     * @param array|null $opts Reserved
+     * @return bool|null True=allowed, False=denied, Null=no opinion
+     *
+     * @since 1.1.0
+     */
+    function authorize(&$data, $opts = null)
+    {
+        $userId      = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+        $action      = isset($data['action']) ? (string) $data['action'] : '';
+        $module      = isset($data['module']) ? (string) $data['module'] : '';
+        $resType     = isset($data['resource_type']) ? (string) $data['resource_type'] : '';
+        $resId       = isset($data['resource_id']) ? (int) $data['resource_id'] : null;
+
+        if ($userId <= 0 || $action === '') {
+            return null;
+        }
+
+        try {
+            $this->_ensureComposerDependencies();
+
+            if (!class_exists('Ksfraser\FA\Rbac\Adapter\FaDbAdapter')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Contract/DbAdapterInterface.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaTeamRepository.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaRecordAccessRepository.php';
+            }
+
+            $dbAdapter = new \Ksfraser\FA\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $teamRepo  = new \Ksfraser\FA\Rbac\Repository\FaTeamRepository($dbAdapter);
+
+            $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);
+
+            if (empty($teamIds)) {
+                return false;
+            }
+
+            // Create actions — user belongs to at least one team
+            if ($action === 'create') {
+                return true;
+            }
+
+            // Record-level actions (view, edit, delete) — check specific record
+            if ($resId !== null && $module !== '' && $resType !== '') {
+                $accessRepo = new \Ksfraser\FA\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
+                $records    = $accessRepo->findForRecord($module, $resType, $resId, $teamIds);
+
+                $capField = 'can_' . $action; // e.g. 'can_view', 'can_edit', 'can_delete'
+
+                foreach ($records as $access) {
+                    $caps = $access->getCapabilities()->toArray();
+                    if (!empty($caps[$capField])) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            // Default — allow (user has teams, no specific record constraint)
+            return true;
+        } catch (\Exception $e) {
+            error_log('KSF RBAC: authorize check failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     /**
      * Quick check whether the person registry tables have been provisioned.
      *
@@ -157,42 +268,4 @@ class hooks_ksf_FA_RBAC extends hooks {
         return db_num_rows($result) > 0;
     }
 
-    /**
-     * Ensure Composer dependencies are installed.
-     *
-     * @return void
-     *
-     * @since 1.0.0
-     */
-    private function _ensureComposerDependencies() {
-        $module_dir = dirname(__FILE__);
-        $autoload_path = $module_dir . '/vendor/autoload.php';
-
-        if (file_exists($autoload_path)) {
-            require_once $autoload_path;
-            return;
-        }
-
-        $composer_path = $module_dir . '/composer.json';
-        if (!file_exists($composer_path)) {
-            return;
-        }
-
-        $composer_lock = $module_dir . '/composer.lock';
-        if (!file_exists($composer_lock)) {
-            return;
-        }
-
-        chdir($module_dir);
-        $output = array();
-        $return_code = 0;
-        exec('composer install --no-interaction --prefer-dist 2>&1', $output, $return_code);
-        if ($return_code !== 0) {
-            error_log('KSF RBAC: composer install failed: ' . implode("\n", $output));
-        }
-
-        if (file_exists($autoload_path)) {
-            require_once $autoload_path;
-        }
-    }
 }
