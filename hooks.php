@@ -105,6 +105,108 @@ class hooks_ksf_FA_RBAC extends hooks {
         }
     }
 
+    /**
+     * Determine access level for a user based on RBAC configuration.
+     * 
+     * @param array &$data User data including user_id, module, action, etc.
+     * @return string|null Access level: 'FULL', 'TEAM', 'READ_ONLY', 'MINE' or null
+     */
+    public function rbac_access_level(&$data) {
+        $userId = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+        $module = isset($data['module']) ? (string) $data['module'] : '';
+        $action = isset($data['action']) ? (string) $data['action'] : '';
+        
+        if ($userId <= 0 || $module === '') {
+            return null;
+        }
+
+        // Check if RBAC is properly installed by verifying teams table exists
+        $dbAdapter = null;
+        try {
+            if (!class_exists('Ksfraser\FA\Rbac\Adapter\FaDbAdapter')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
+            }
+            $dbAdapter = new \Ksfraser\FA\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            
+            // Verify RBAC tables exist
+            $teamsTable = TB_PREF . 'rbac_teams';
+            $result = db_query("SHOW TABLES LIKE '$teamsTable'", __FUNCTION__);
+            if (db_num_rows($result) === 0) {
+                throw new \Exception('RBAC not installed');
+            }
+        } catch (\Exception $e) {
+            // RBAC not installed - apply defaults
+            // HRM: Admin gets FULL, others get MINE
+            // CRM: Default READ_ONLY
+            // PM: Default READ_ONLY
+            
+            // Check if user has FA Admin role (simplified check)
+            $isFaAdmin = $this->hasFaAdminRole($userId);
+            
+            if ($module === 'hrm' && $isFaAdmin) {
+                return 'FULL';
+            }
+            
+            switch ($module) {
+                case 'hrm':
+                    return 'MINE';
+                case 'crm':
+                case 'projectmanagement':
+                case 'pm':
+                    return 'READ_ONLY';
+                default:
+                    return null;
+            }
+        }
+
+        // RBAC is installed - compute actual access level
+        return $this->computeRbacAccessLevel($dbAdapter, $userId, $module, $action);
+    }
+
+    /**
+     * Check if user has FA Admin role access
+     */
+    private function hasFaAdminRole(int $userId): bool {
+        global $db;
+        if (!$db) {
+            return false;
+        }
+        
+        $query = "SELECT role FROM " . TB_PREF . "users WHERE id = ?";
+        $result = db_query($query, __FUNCTION__, [$userId]);
+        if (db_num_rows($result) > 0) {
+            $row = db_fetch($result);
+            return $row['role'] === 'administrator' || $row['role'] === 'admin';
+        }
+        return false;
+    }
+
+    /**
+     * Compute access level using RBAC
+     */
+    private function computeRbacAccessLevel($dbAdapter, int $userId, string $module, string $action): ?string {
+        // Query user's teams
+        try {
+            if (!class_exists('Ksfraser\FA\Rbac\Repository\FaTeamRepository')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaTeamRepository.php';
+            }
+            
+            $teamRepo = new \Ksfraser\FA\Rbac\Repository\FaTeamRepository($dbAdapter);
+            $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);
+            
+            if (empty($teamIds)) {
+                return 'NONE';
+            }
+            
+            // Check record access if specific resource
+            // Default to TEAM access level
+            return 'TEAM';
+        } catch (\Exception $e) {
+            error_log('RBAC access level computation failed: ' . $e->getMessage());
+            return 'READ_ONLY';
+        }
+    }
+
     // =======================================================================
     // KSF Query Hook System — Advertised values
     //
