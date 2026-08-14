@@ -13,17 +13,17 @@ System Administrator
 - RBAC module is active and configured
 
 ## Main Flow
-1. Admin navigates to RBAC Access Rules page (`pages/user_access.php`)
+1. Admin navigates to RBAC Access Rules page (`pages/access_matrix.php`)
 2. Admin clicks "Add Access Rule" or selects existing access rule
 3. System displays current access permissions for the user
 4. System shows inheritance chain:
-   - Direct RBAC role (highest precedence)
-   - Position-inherited RBAC role (from HRM position)
-   - Default role (fallback)
-5. Admin assigns/removes RBAC permissions via checkboxes
-6. System validates permission assignment
-7. System saves permission changes to `rbac_role_matrix` table
-7. System recalculates effective permissions for all modules
+   - Direct team/record grant (highest precedence)
+   - Position-inherited grant (from HRM position)
+   - Module default (fallback)
+5. Admin assigns/removes access levels and scope via checkboxes/dropdowns (None/Mine/Team/All)
+6. System validates the assignment
+7. System saves the change to `0_rbac_record_access` / `0_rbac_position_permissions`
+7. System recalculates effective access levels for all modules and refreshes the session cache
 8. System displays updated access matrix
 
 ## Postconditions
@@ -46,6 +46,6 @@ System Administrator
 - Admin can override by assigning specific permissions manually
 
 ## Linked Requirements
-- BR-001-User Access
-- FR-001-001-User_Access_Repository.md
-- FR-001-002-User_Access_UI.md
+- BR-001-Access Control
+- FR-001-001-Access_Repository.md
+- FR-001-002-Access_Control_UI.md

@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\Tests\FA\Rbac\Unit\Repository;
+namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Repository;
 
 use PHPUnit\Framework\TestCase;
-use Ksfraser\FA\Rbac\Repository\FaTeamRepository;
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 use Ksfraser\Rbac\Entity\Team;
 use Ksfraser\Rbac\Entity\TeamMember;
 
 /**
  * Unit tests for FaTeamRepository.
  *
- * @covers \Ksfraser\FA\Rbac\Repository\FaTeamRepository
+ * @covers \Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository
  * @since 1.0.0
  */
 class FaTeamRepositoryTest extends TestCase
@@ -61,6 +61,58 @@ class FaTeamRepositoryTest extends TestCase
 
         $repo = new FaTeamRepository($db);
         $this->assertNull($repo->findById('no_such_team'));
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindByIdHydratesApproverIdsFromCsvString(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->method('fetchAssoc')->willReturn([
+            'id'                => 'sales_team',
+            'display_name'      => 'Sales Team',
+            'team_type'         => Team::TYPE_EXPLICIT,
+            'owner_id'          => 'alice',
+            'auto_managed'      => '0',
+            'requires_approval' => '0',
+            'inactive'          => '0',
+            'approver_ids'      => 'alice,bob',
+            'created_at'        => '2025-01-01 00:00:00',
+            'updated_at'        => '2025-01-01 00:00:00',
+        ]);
+
+        $repo = new FaTeamRepository($db);
+        $team = $repo->findById('sales_team');
+
+        $this->assertSame(['alice', 'bob'], $team->getApproverIds());
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindByIdHydratesEmptyApproverIdsFromEmptyString(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->method('fetchAssoc')->willReturn([
+            'id'                => 'sales_team',
+            'display_name'      => 'Sales Team',
+            'team_type'         => Team::TYPE_EXPLICIT,
+            'owner_id'          => null,
+            'auto_managed'      => '0',
+            'requires_approval' => '0',
+            'inactive'          => '0',
+            'approver_ids'      => '',
+            'created_at'        => '2025-01-01 00:00:00',
+            'updated_at'        => '2025-01-01 00:00:00',
+        ]);
+
+        $repo = new FaTeamRepository($db);
+        $team = $repo->findById('sales_team');
+
+        $this->assertSame([], $team->getApproverIds());
     }
 
     // -------------------------------------------------------------------------
@@ -230,5 +282,38 @@ class FaTeamRepositoryTest extends TestCase
 
         $repo = new FaTeamRepository($db);
         $repo->removeMember('sales_team', 'alice', 'admin');
+    }
+
+    // -------------------------------------------------------------------------
+    // findApprovers
+    // -------------------------------------------------------------------------
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindApproversReturnsOwnerUserIds(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->method('fetchAll')->willReturn([
+            ['user_id' => 'alice'],
+            ['user_id' => 'bob'],
+        ]);
+
+        $repo = new FaTeamRepository($db);
+        $this->assertSame(['alice', 'bob'], $repo->findApprovers('sales_team'));
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindApproversReturnsEmptyWhenNoOwners(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->method('fetchAll')->willReturn([]);
+
+        $repo = new FaTeamRepository($db);
+        $this->assertSame([], $repo->findApprovers('sales_team'));
     }
 }
