@@ -14,7 +14,7 @@ FrontAccounting adapter for `ksfraser/rbac` (business logic). Bridges the RBAC s
 
 ```
 ksf_FA_RBAC/
-├── src/Ksfraser/FA/Rbac/
+├── src/Ksfraser/FrontAccounting/Rbac/
 │   ├── Contract/
 │   │   └── DbAdapterInterface.php       — minimal DB abstraction
 │   ├── Adapter/

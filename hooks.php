@@ -23,7 +23,7 @@ if (file_exists($rbacAutoload)) {
 $composerDepsPath = dirname(__DIR__) . '/ksf_FA_Common/src/Utils/ComposerDependencies.php';
 if (file_exists($composerDepsPath)) {
     require_once $composerDepsPath;
-    \KsfCommon\Utils\ComposerDependencies::ensure(__DIR__);
+    \ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(__DIR__);
 }
 
 class hooks_ksf_FA_RBAC extends hooks {
@@ -33,16 +33,52 @@ class hooks_ksf_FA_RBAC extends hooks {
     var $version = '1.0.0';
 
     /**
-     * Constructor — performs lazy user provisioning on page access.
+     * Constructor.
      *
-     * The hooks class is instantiated on every request after the session is
-     * established.  If the current user has not yet been provisioned into the
-     * person registry and RBAC system, this creates the necessary rows.
+     * Provisioning is deferred to pre_header(): the hooks class is
+     * instantiated during session bootstrap before the company DB
+     * connection and TB_PREF are available.
      *
      * @since 1.0.0
      */
     function __construct() {
+    }
+
+    /**
+     * Lazy-provision the current user once the session and DB are ready.
+     *
+     * Invoked by FA before the page header is rendered on every request
+     * after login.
+     *
+     * @param array $fun_args Reserved
+     *
+     * @since 1.0.0
+     */
+    function pre_header($fun_args = null) {
         $this->provisionCurrentUser();
+    }
+
+    /**
+     * Ensure Composer dependencies are installed/autoloadable.
+     *
+     * Autoloads the module vendor autoloader and runs the shared
+     * ComposerDependencies::ensure() helper (from ksf_FA_Common) when
+     * present. Idempotent.
+     *
+     * @return void
+     *
+     * @since 1.0.0
+     */
+    private function _ensureComposerDependencies(): void {
+        $autoload = dirname(__FILE__) . '/vendor/autoload.php';
+        if (file_exists($autoload)) {
+            require_once $autoload;
+        }
+        $composerDepsPath = dirname(__DIR__) . '/ksf_FA_Common/src/Utils/ComposerDependencies.php';
+        if (file_exists($composerDepsPath)) {
+            require_once $composerDepsPath;
+            \ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(dirname(__FILE__));
+        }
     }
 
     /**
@@ -75,28 +111,34 @@ class hooks_ksf_FA_RBAC extends hooks {
      * @since 1.0.0
      */
     private function provisionCurrentUser() {
+        global $db;
+
+        if (!is_object($db)) {
+            return;
+        }
+
         if (!isset($_SESSION['wa_current_user']->user)) {
             return;
         }
 
         $user = $_SESSION['wa_current_user'];
-        if (!isset($user->user_id, $user->login, $user->name, $user->email)) {
+        if (!isset($user->user, $user->loginname, $user->name, $user->email)) {
             return;
         }
 
         try {
-            if (!class_exists('Ksfraser\FA\Rbac\Provisioner\UserProvisioner')) {
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Provisioner/UserProvisioner.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Contract/DbAdapterInterface.php';
+            if (!class_exists('Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Provisioner/UserProvisioner.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Adapter/FaDbAdapter.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Contract/DbAdapterInterface.php';
             }
 
-            $dbAdapter   = new \Ksfraser\FA\Rbac\Adapter\FaDbAdapter(TB_PREF);
-            $provisioner = new \Ksfraser\FA\Rbac\Provisioner\UserProvisioner($dbAdapter);
+            $dbAdapter   = new \Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $provisioner = new \Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner($dbAdapter);
 
             $provisioner->provision(
-                (int) $user->user_id,
-                (string) $user->login,
+                (int) $user->user,
+                (string) $user->loginname,
                 (string) $user->name,
                 (string) $user->email
             );
@@ -202,15 +244,15 @@ class hooks_ksf_FA_RBAC extends hooks {
         try {
             $this->_ensureComposerDependencies();
 
-            if (!class_exists('Ksfraser\FA\Rbac\Adapter\FaDbAdapter')) {
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Contract/DbAdapterInterface.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Adapter/FaDbAdapter.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaTeamRepository.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FA/Rbac/Repository/FaRecordAccessRepository.php';
+            if (!class_exists('Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter')) {
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Contract/DbAdapterInterface.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Adapter/FaDbAdapter.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaTeamRepository.php';
+                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaRecordAccessRepository.php';
             }
 
-            $dbAdapter = new \Ksfraser\FA\Rbac\Adapter\FaDbAdapter(TB_PREF);
-            $teamRepo  = new \Ksfraser\FA\Rbac\Repository\FaTeamRepository($dbAdapter);
+            $dbAdapter = new \Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $teamRepo  = new \Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository($dbAdapter);
 
             $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);
 
@@ -225,7 +267,7 @@ class hooks_ksf_FA_RBAC extends hooks {
 
             // Record-level actions (view, edit, delete) — check specific record
             if ($resId !== null && $module !== '' && $resType !== '') {
-                $accessRepo = new \Ksfraser\FA\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
+                $accessRepo = new \Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
                 $records    = $accessRepo->findForRecord($module, $resType, $resId, $teamIds);
 
                 $capField = 'can_' . $action; // e.g. 'can_view', 'can_edit', 'can_delete'

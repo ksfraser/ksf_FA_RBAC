@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\FA\Rbac\Repository;
+namespace Ksfraser\FrontAccounting\Rbac\Repository;
 
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 use Ksfraser\Rbac\Contract\TeamRepositoryInterface;
 use Ksfraser\Rbac\Entity\Team;
 use Ksfraser\Rbac\Entity\TeamMember;
@@ -204,6 +204,27 @@ class FaTeamRepository implements TeamRepositoryInterface
     }
 
     /**
+     * {@inheritdoc}
+     *
+     * Returns the user IDs of approved team owners, who act as the
+     * delegated approvers for a team.
+     *
+     * @since 1.0.0
+     */
+    public function findApprovers(string $teamId): array
+    {
+        $rows = $this->db->fetchAll(
+            "SELECT tm.user_id
+             FROM rbac_team_members tm
+             WHERE tm.team_id = ? AND tm.role = 'owner'
+               AND tm.inactive = 0 AND tm.approved = 1",
+            [$teamId]
+        );
+
+        return array_column($rows, 'user_id');
+    }
+
+    /**
      * Hydrate a Team entity from a DB row.
      *
      * @param array $row
@@ -213,6 +234,13 @@ class FaTeamRepository implements TeamRepositoryInterface
      */
     private function hydrateTeam(array $row): Team
     {
+        $approverIds = $row['approver_ids'] ?? null;
+        if ($approverIds === null) {
+            $approverIds = [];
+        } elseif (is_string($approverIds)) {
+            $approverIds = $approverIds === '' ? [] : explode(',', $approverIds);
+        }
+
         return new Team(
             (string) $row['id'],
             (string) $row['display_name'],
@@ -220,6 +248,7 @@ class FaTeamRepository implements TeamRepositoryInterface
             isset($row['owner_id']) && $row['owner_id'] !== '' ? (string) $row['owner_id'] : null,
             (bool) ($row['auto_managed'] ?? false),
             (bool) ($row['requires_approval'] ?? false),
+            $approverIds,
             (bool) ($row['inactive'] ?? false),
             new \DateTimeImmutable($row['created_at'] ?? 'now'),
             new \DateTimeImmutable($row['updated_at'] ?? 'now')

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\FA\Rbac\Contract;
+namespace Ksfraser\FrontAccounting\Rbac\Contract;
 
 /**
  * Minimal database adapter interface for RBAC repositories.

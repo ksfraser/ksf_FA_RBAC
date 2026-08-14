@@ -20,7 +20,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Ksfraser\\Tests\\FA\\Rbac\\": "tests/"
+            "Ksfraser\\Tests\\FrontAccounting\\Rbac\\": "tests/"
         }
     },
     "minimum-stability": "dev",

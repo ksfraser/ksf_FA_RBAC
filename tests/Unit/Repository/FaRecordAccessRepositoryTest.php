@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\Tests\FA\Rbac\Unit\Repository;
+namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Repository;
 
 use PHPUnit\Framework\TestCase;
-use Ksfraser\FA\Rbac\Repository\FaRecordAccessRepository;
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 use Ksfraser\Rbac\Entity\RecordAccess;
 use Ksfraser\Rbac\ValueObject\CapabilitySet;
 use Ksfraser\Rbac\ValueObject\ProjectionName;
@@ -14,7 +14,7 @@ use Ksfraser\Rbac\ValueObject\ProjectionName;
 /**
  * Unit tests for FaRecordAccessRepository.
  *
- * @covers \Ksfraser\FA\Rbac\Repository\FaRecordAccessRepository
+ * @covers \Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository
  * @since 1.0.0
  */
 class FaRecordAccessRepositoryTest extends TestCase
@@ -226,5 +226,115 @@ class FaRecordAccessRepositoryTest extends TestCase
         $this->assertSame(2, $count);
         // 2 deactivates + 2 inserts = 4 calls
         $this->assertSame(4, $updateCount);
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testReassignFiltersByRecordIds(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+
+        $db->method('fetchAll')->willReturn([
+            ['id' => '1', 'module' => 'calendar', 'record_type' => 'entry', 'record_id' => '10',
+             'projection' => 'public', 'can_view' => '1', 'can_edit' => '1', 'can_delete' => '0',
+             'can_export' => '0', 'can_print' => '0', 'can_invite' => '0', 'can_restore' => '0',
+             'granted_by' => 'admin', 'granted_at' => '2025-01-01 00:00:00',
+             'expires_at' => '2026-01-01 00:00:00', 'inactive' => '0', 'team_id' => 'old_team'],
+        ]);
+
+        $db->method('executeUpdate')->willReturn(1);
+
+        $repo  = new FaRecordAccessRepository($db);
+        $count = $repo->reassign('old_team', 'new_team', 'admin', [10, 11], 'calendar', 'entry');
+
+        $this->assertSame(1, $count);
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testReassignCopiesExpiresAtToNewRow(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+
+        $db->method('fetchAll')->willReturn([
+            ['id' => '1', 'module' => 'calendar', 'record_type' => 'entry', 'record_id' => '10',
+             'projection' => 'public', 'can_view' => '1', 'can_edit' => '1', 'can_delete' => '0',
+             'can_export' => '0', 'can_print' => '0', 'can_invite' => '0', 'can_restore' => '0',
+             'granted_by' => 'admin', 'granted_at' => '2025-01-01 00:00:00',
+             'expires_at' => '2026-01-01 00:00:00', 'inactive' => '0', 'team_id' => 'old_team'],
+        ]);
+
+        $captured = [];
+        $db->method('executeUpdate')->willReturnCallback(
+            function ($sql, $params) use (&$captured) {
+                $captured[] = [$sql, $params];
+                return 1;
+            }
+        );
+
+        $repo  = new FaRecordAccessRepository($db);
+        $repo->reassign('old_team', 'new_team', 'admin', [], 'calendar', 'entry');
+
+        // Last call is the INSERT for the target team; its params must include
+        // the reassigned-by id and the copied expiry date.
+        $insertParams = end($captured)[1];
+        $this->assertContains('new_team', $insertParams);
+        $this->assertContains('2026-01-01 00:00:00', $insertParams);
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindForRecordReturnsEmptyWhenNoTeamIds(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->expects($this->never())->method('fetchAll');
+
+        $repo   = new FaRecordAccessRepository($db);
+        $result = $repo->findForRecord('calendar', 'entry', 42, []);
+
+        $this->assertSame([], $result);
+    }
+
+    /**
+     * @test
+     * @since 1.0.0
+     */
+    public function testFindForRecordHydratesExpiresAt(): void
+    {
+        $db = $this->createMock(DbAdapterInterface::class);
+        $db->method('fetchAll')->willReturn([
+            [
+                'id'          => '1',
+                'module'      => 'calendar',
+                'record_type' => 'entry',
+                'record_id'   => '42',
+                'team_id'     => '5_individual',
+                'projection'  => 'public',
+                'can_view'    => '1',
+                'can_edit'    => '1',
+                'can_delete'  => '0',
+                'can_export'  => '0',
+                'can_print'   => '0',
+                'can_invite'  => '1',
+                'can_restore' => '0',
+                'granted_by'  => 'admin',
+                'granted_at'  => '2025-01-01 00:00:00',
+                'expires_at'  => '2026-01-01 00:00:00',
+                'inactive'    => '0',
+            ],
+        ]);
+
+        $repo   = new FaRecordAccessRepository($db);
+        $result = $repo->findForRecord('calendar', 'entry', 42, ['5_individual']);
+
+        $this->assertCount(1, $result);
+        $this->assertNotNull($result[0]->getExpiresAt());
+        $this->assertSame('2026-01-01', $result[0]->getExpiresAt()->format('Y-m-d'));
     }
 }

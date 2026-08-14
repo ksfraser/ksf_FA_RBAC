@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\FA\Rbac\Repository;
+namespace Ksfraser\FrontAccounting\Rbac\Repository;
 
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 use Ksfraser\Rbac\Contract\RecordAccessRepositoryInterface;
 use Ksfraser\Rbac\Entity\RecordAccess;
 use Ksfraser\Rbac\ValueObject\CapabilitySet;

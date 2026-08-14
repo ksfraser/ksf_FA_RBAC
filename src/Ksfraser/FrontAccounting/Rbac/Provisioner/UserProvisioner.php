@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\FA\Rbac\Provisioner;
+namespace Ksfraser\FrontAccounting\Rbac\Provisioner;
 
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -61,7 +61,7 @@ class UserProvisioner
         $teamId = $userId . '_individual';
 
         // Step 1 — resolve or create person + contact
-        $contactId = $this->resolveContact($userId, $name, $email);
+        $contactId = $this->resolveContact($userId, $login, $name, $email);
 
         // Step 2 — resolve or create individual team
         $this->resolveIndividualTeam($teamId, $userId, $login);
@@ -80,16 +80,17 @@ class UserProvisioner
      * Resolve crm_contacts row for this user, creating person + contact if needed.
      *
      * @param int    $userId
+     * @param string $login
      * @param string $name
      * @param string $email
      * @return int crm_contacts.id
      *
      * @since 1.0.0
      */
-    private function resolveContact(int $userId, string $name, string $email): int
+    private function resolveContact(int $userId, string $login, string $name, string $email): int
     {
         $existing = $this->db->fetchAssoc(
-            "SELECT id, person_id FROM crm_contacts WHERE type = 'user' AND entity_id = ? AND inactive = 0 LIMIT 1",
+            "SELECT id, person_id FROM crm_contacts WHERE type = 'user' AND entity_id = ? LIMIT 1",
             [(string) $userId]
         );
 
@@ -97,16 +98,21 @@ class UserProvisioner
             return (int) $existing['id'];
         }
 
-        // Create crm_persons row
+        // Create crm_persons row. NOTE: stock FA 0_crm_persons has NOT NULL
+        // columns without defaults (ref, name, notes) — FA supplies them from
+        // the customer/supplier form, so we use the (unique) FA login as the
+        // person ref and an empty notes value.
         $this->db->executeUpdate(
-            "INSERT INTO crm_persons (name, email, inactive) VALUES (?, ?, 0)",
-            [$name, $email]
+            "INSERT INTO crm_persons (ref, name, email, notes, inactive) VALUES (?, ?, ?, '', 0)",
+            [$login, $name, $email]
         );
         $personId = $this->db->lastInsertId();
 
-        // Create crm_contacts row linking person → FA user
+        // Create crm_contacts row linking person → FA user.
+        // NOTE: stock FA 0_crm_contacts has NO `inactive` column; identity is
+        // resolved via (type, entity_id).
         $this->db->executeUpdate(
-            "INSERT INTO crm_contacts (person_id, type, action, entity_id, inactive) VALUES (?, 'user', 'general', ?, 0)",
+            "INSERT INTO crm_contacts (person_id, type, action, entity_id) VALUES (?, 'user', 'general', ?)",
             [$personId, (string) $userId]
         );
         $contactId = $this->db->lastInsertId();

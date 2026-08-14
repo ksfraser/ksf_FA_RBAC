@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\FA\Rbac\Adapter;
+namespace Ksfraser\FrontAccounting\Rbac\Adapter;
 
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 
 /**
  * FrontAccounting database adapter for RBAC repositories.

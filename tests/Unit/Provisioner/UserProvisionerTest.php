@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Ksfraser\Tests\FA\Rbac\Unit\Provisioner;
+namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Provisioner;
 
 use PHPUnit\Framework\TestCase;
-use Ksfraser\FA\Rbac\Provisioner\UserProvisioner;
-use Ksfraser\FA\Rbac\Contract\DbAdapterInterface;
+use Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner;
+use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
 
 /**
  * Unit tests for UserProvisioner.
  *
- * @covers \Ksfraser\FA\Rbac\Provisioner\UserProvisioner
+ * @covers \Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner
  * @since 1.0.0
  */
 class UserProvisionerTest extends TestCase
