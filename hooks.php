@@ -92,8 +92,48 @@ class hooks_ksf_FA_RBAC extends hooks {
      */
     function activate_extension($company, $check_only = true) {
         if (file_exists(dirname(__FILE__) . '/sql/install.sql')) {
-            $updates = array('install.sql' => array($this->module_name));
-            return $this->update_databases($company, $updates, $check_only);
+            $updates = array(
+                'install.sql'           => array($this->module_name),
+                'retag_contact_types.sql' => array('ksf_contact_types'),
+            );
+            $ok = $this->update_databases($company, $updates, $check_only);
+        } else {
+            $ok = true;
+        }
+
+        if (!$check_only && $ok) {
+            $this->register_contact_types();
+        }
+
+        return $ok;
+    }
+
+    /**
+     * Register the contact types owned by this module (idempotent).
+     *
+     * @since 1.1.0
+     */
+    private function register_contact_types() {
+        $autoload = dirname(__FILE__) . '/vendor/autoload.php';
+        if (file_exists($autoload)) {
+            require_once $autoload;
+        }
+        if (!class_exists('\\ksfraser\\FrontAccounting\\Common\\ContactType\\ContactTypeRegistry')) {
+            return;
+        }
+
+        \ksfraser\FrontAccounting\Common\ContactType\ContactTypeRegistry::registerTypes(array(
+            new \ksfraser\FrontAccounting\Common\ContactType\ContactType(
+                'fa_user', 'FA User', $this->module_name,
+                'FrontAccounting RBAC user account'
+            ),
+        ));
+    }
+
+    function deactivate_extension($company, $check_only = true) {
+        if (!$check_only
+            && class_exists('\\ksfraser\\FrontAccounting\\Common\\ContactType\\ContactTypeRegistry')) {
+            \ksfraser\FrontAccounting\Common\ContactType\ContactTypeRegistry::unregisterModule($this->module_name);
         }
 
         return true;
