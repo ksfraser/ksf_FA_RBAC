@@ -6,7 +6,7 @@ namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Provisioner;
 
 use PHPUnit\Framework\TestCase;
 use Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner;
-use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
+use ksfraser\CommonDb\Contract\DbConnectionInterface;
 
 /**
  * Unit tests for UserProvisioner.
@@ -23,11 +23,11 @@ class UserProvisionerTest extends TestCase
     /**
      * @param array $contactRow  Row for crm_contacts lookup (null = not found)
      * @param array $calls       Collector for executeUpdate / lastInsertId calls
-     * @return DbAdapterInterface&\PHPUnit\Framework\MockObject\MockObject
+     * @return DbConnectionInterface&\PHPUnit\Framework\MockObject\MockObject
      */
-    private function makeDb(?array $contactRow, array &$calls): DbAdapterInterface
+    private function makeDb(?array $contactRow, array &$calls): DbConnectionInterface
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
 
         // fetchAssoc: first call = crm_contacts lookup, second = team exists check
         $db->method('fetchAssoc')
@@ -105,7 +105,7 @@ class UserProvisionerTest extends TestCase
         $db         = $this->makeDb($existingRow, $calls);
 
         // Override team check to return existing team
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')
             ->willReturnCallback(function (string $sql, array $params) use ($existingRow) {
                 if (strpos($sql, 'crm_contacts') !== false) {
@@ -133,7 +133,7 @@ class UserProvisionerTest extends TestCase
         $calls       = [];
         $existingRow = ['id' => 7, 'person_id' => 3];
 
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
 
         $seq = 0;
         $db->method('fetchAssoc')

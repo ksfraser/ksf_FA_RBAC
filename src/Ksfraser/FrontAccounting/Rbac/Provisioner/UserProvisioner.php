@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ksfraser\FrontAccounting\Rbac\Provisioner;
 
-use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
+use ksfraser\CommonDb\Contract\DbConnectionInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -24,19 +24,19 @@ use Psr\Log\NullLogger;
  */
 class UserProvisioner
 {
-    /** @var DbAdapterInterface */
+    /** @var DbConnectionInterface */
     private $db;
 
     /** @var LoggerInterface */
     private $logger;
 
     /**
-     * @param DbAdapterInterface $db
+     * @param DbConnectionInterface $db
      * @param LoggerInterface    $logger
      *
      * @since 1.0.0
      */
-    public function __construct(DbAdapterInterface $db, LoggerInterface $logger = null)
+    public function __construct(DbConnectionInterface $db, LoggerInterface $logger = null)
     {
         $this->db     = $db;
         $this->logger = $logger ?? new NullLogger();

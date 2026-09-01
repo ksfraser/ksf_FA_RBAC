@@ -8,6 +8,7 @@
         "ksfraser/rbac": "*",
         "ksfraser/exceptions": "*",
         "ksfraser/traits": "^1.2",
+        "ksfraser/ksf-common-db": "*",
         "psr/log": "^1.1|^2.0|^3.0"
     },
     "require-dev": {
@@ -39,6 +40,11 @@
         {
             "type": "path",
             "url": "../../../Traits",
+            "canonical": false
+        },
+        {
+            "type": "path",
+            "url": "../../../ksf_common_db",
             "canonical": false
         }
     ]

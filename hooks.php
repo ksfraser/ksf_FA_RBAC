@@ -169,11 +169,9 @@ class hooks_ksf_FA_RBAC extends hooks {
         try {
             if (!class_exists('Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner')) {
                 require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Provisioner/UserProvisioner.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Adapter/FaDbAdapter.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Contract/DbAdapterInterface.php';
             }
 
-            $dbAdapter   = new \Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $dbAdapter   = new \ksfraser\CommonDb\Adapter\FaDbAdapter(TB_PREF);
             $provisioner = new \Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner($dbAdapter);
 
             $provisioner->provision(
@@ -284,14 +282,12 @@ class hooks_ksf_FA_RBAC extends hooks {
         try {
             $this->_ensureComposerDependencies();
 
-            if (!class_exists('Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter')) {
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Contract/DbAdapterInterface.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Adapter/FaDbAdapter.php';
+            if (!class_exists('Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository')) {
                 require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaTeamRepository.php';
                 require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaRecordAccessRepository.php';
             }
 
-            $dbAdapter = new \Ksfraser\FrontAccounting\Rbac\Adapter\FaDbAdapter(TB_PREF);
+            $dbAdapter = new \ksfraser\CommonDb\Adapter\FaDbAdapter(TB_PREF);
             $teamRepo  = new \Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository($dbAdapter);
 
             $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);

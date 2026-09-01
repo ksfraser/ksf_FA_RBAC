@@ -6,7 +6,7 @@ namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Repository;
 
 use PHPUnit\Framework\TestCase;
 use Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository;
-use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
+use ksfraser\CommonDb\Contract\DbConnectionInterface;
 use Ksfraser\Rbac\Entity\Team;
 use Ksfraser\Rbac\Entity\TeamMember;
 
@@ -28,7 +28,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindByIdReturnsTeamWhenFound(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn([
             'id'               => 'sales_team',
             'display_name'     => 'Sales Team',
@@ -56,7 +56,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindByIdReturnsNullWhenNotFound(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn(null);
 
         $repo = new FaTeamRepository($db);
@@ -69,7 +69,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindByIdHydratesApproverIdsFromCsvString(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn([
             'id'                => 'sales_team',
             'display_name'      => 'Sales Team',
@@ -95,7 +95,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindByIdHydratesEmptyApproverIdsFromEmptyString(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn([
             'id'                => 'sales_team',
             'display_name'      => 'Sales Team',
@@ -125,7 +125,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindDirectTeamIdsForUserReturnsArrayOfStrings(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([
             ['team_id' => '5_individual'],
             ['team_id' => 'sales_team'],
@@ -143,7 +143,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindEffectiveTeamIdsForUserReturnsDedupedArray(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([
             ['team_id' => '5_individual'],
             ['team_id' => 'sales_team'],
@@ -166,7 +166,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testSaveCallsInsertIntoRbacTeams(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with($this->stringContains('rbac_teams'));
@@ -186,7 +186,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testDeactivateCallsUpdateWithInactive(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with(
@@ -208,7 +208,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testExistsReturnsTrueWhenFound(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn(['id' => 'foo']);
 
         $repo = new FaTeamRepository($db);
@@ -221,7 +221,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testExistsReturnsFalseWhenNotFound(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAssoc')->willReturn(null);
 
         $repo = new FaTeamRepository($db);
@@ -238,7 +238,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testAddMemberCallsInsertIntoRbacTeamMembers(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with($this->stringContains('rbac_team_members'));
@@ -254,7 +254,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testApproveMemberCallsUpdateOnRbacTeamMembers(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with(
@@ -272,7 +272,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testRemoveMemberCallsUpdateSettingInactive(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with(
@@ -294,7 +294,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindApproversReturnsOwnerUserIds(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([
             ['user_id' => 'alice'],
             ['user_id' => 'bob'],
@@ -310,7 +310,7 @@ class FaTeamRepositoryTest extends TestCase
      */
     public function testFindApproversReturnsEmptyWhenNoOwners(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([]);
 
         $repo = new FaTeamRepository($db);

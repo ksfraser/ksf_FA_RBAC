@@ -6,7 +6,7 @@ namespace Ksfraser\Tests\FrontAccounting\Rbac\Unit\Repository;
 
 use PHPUnit\Framework\TestCase;
 use Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository;
-use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
+use ksfraser\CommonDb\Contract\DbConnectionInterface;
 use Ksfraser\Rbac\Entity\RecordAccess;
 use Ksfraser\Rbac\ValueObject\CapabilitySet;
 use Ksfraser\Rbac\ValueObject\ProjectionName;
@@ -29,7 +29,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testFindForRecordReturnsEmptyArrayWhenNone(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([]);
 
         $repo   = new FaRecordAccessRepository($db);
@@ -44,7 +44,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testFindForRecordReturnsRecordAccessInstances(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([
             [
                 'id'          => '1',
@@ -89,7 +89,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testSaveCallsInsertIntoRbacRecordAccess(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with($this->stringContains('rbac_record_access'));
@@ -117,7 +117,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testDeactivateForTeamCallsUpdateOnRbacRecordAccess(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->once())
             ->method('executeUpdate')
             ->with(
@@ -139,7 +139,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testBuildAccessJoinSqlReturnsNonEmptyString(): void
     {
-        $db   = $this->createMock(DbAdapterInterface::class);
+        $db   = $this->createMock(DbConnectionInterface::class);
         $repo = new FaRecordAccessRepository($db);
         $sql  = $repo->buildAccessJoinSql('calendar', 'entry', 'e');
 
@@ -153,7 +153,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testBuildAccessJoinSqlContainsModuleAndRecordType(): void
     {
-        $db   = $this->createMock(DbAdapterInterface::class);
+        $db   = $this->createMock(DbConnectionInterface::class);
         $repo = new FaRecordAccessRepository($db);
         $sql  = $repo->buildAccessJoinSql('calendar', 'entry', 'e');
 
@@ -167,7 +167,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testBuildAccessJoinSqlContainsRbacTables(): void
     {
-        $db   = $this->createMock(DbAdapterInterface::class);
+        $db   = $this->createMock(DbConnectionInterface::class);
         $repo = new FaRecordAccessRepository($db);
         $sql  = $repo->buildAccessJoinSql('calendar', 'entry', 'e');
 
@@ -181,7 +181,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testBuildAccessJoinSqlUsesProvidedTableAlias(): void
     {
-        $db   = $this->createMock(DbAdapterInterface::class);
+        $db   = $this->createMock(DbConnectionInterface::class);
         $repo = new FaRecordAccessRepository($db);
         $sql  = $repo->buildAccessJoinSql('calendar', 'entry', 'cal');
 
@@ -198,7 +198,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testReassignCallsUpdateAndInsertForAffectedRows(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
 
         // Simulate 2 rows to reassign
         $db->method('fetchAll')->willReturn([
@@ -234,7 +234,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testReassignFiltersByRecordIds(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
 
         $db->method('fetchAll')->willReturn([
             ['id' => '1', 'module' => 'calendar', 'record_type' => 'entry', 'record_id' => '10',
@@ -258,7 +258,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testReassignCopiesExpiresAtToNewRow(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
 
         $db->method('fetchAll')->willReturn([
             ['id' => '1', 'module' => 'calendar', 'record_type' => 'entry', 'record_id' => '10',
@@ -292,7 +292,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testFindForRecordReturnsEmptyWhenNoTeamIds(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->expects($this->never())->method('fetchAll');
 
         $repo   = new FaRecordAccessRepository($db);
@@ -307,7 +307,7 @@ class FaRecordAccessRepositoryTest extends TestCase
      */
     public function testFindForRecordHydratesExpiresAt(): void
     {
-        $db = $this->createMock(DbAdapterInterface::class);
+        $db = $this->createMock(DbConnectionInterface::class);
         $db->method('fetchAll')->willReturn([
             [
                 'id'          => '1',

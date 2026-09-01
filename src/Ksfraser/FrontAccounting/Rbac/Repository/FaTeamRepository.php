@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ksfraser\FrontAccounting\Rbac\Repository;
 
-use Ksfraser\FrontAccounting\Rbac\Contract\DbAdapterInterface;
+use ksfraser\CommonDb\Contract\DbConnectionInterface;
 use Ksfraser\Rbac\Contract\TeamRepositoryInterface;
 use Ksfraser\Rbac\Entity\Team;
 use Ksfraser\Rbac\Entity\TeamMember;
@@ -19,15 +19,15 @@ use Ksfraser\Rbac\Entity\TeamMember;
  */
 class FaTeamRepository implements TeamRepositoryInterface
 {
-    /** @var DbAdapterInterface */
+    /** @var DbConnectionInterface */
     private $db;
 
     /**
-     * @param DbAdapterInterface $db
+     * @param DbConnectionInterface $db
      *
      * @since 1.0.0
      */
-    public function __construct(DbAdapterInterface $db)
+    public function __construct(DbConnectionInterface $db)
     {
         $this->db = $db;
     }
