@@ -1,11 +1,12 @@
 {
     "name": "ksfraser/ksf-fa-rbac",
-    "description": "FrontAccounting adapter for ksfraser/rbac — DB repositories, user provisioning, and FA hook integration.",
+    "description": "FrontAccounting adapter for RBAC — Voter-based authorization, role/permission hierarchy, and FA hook integration.",
     "type": "fa-module",
     "license": "GPL-3.0",
     "require": {
         "php": ">=7.4",
-        "ksfraser/rbac": "*",
+        "zendframework/zend-permissions-rbac": "^3.2",
+        "defuse/php-encryption": "^2.3",
         "ksfraser/exceptions": "*",
         "ksfraser/traits": "^1.2",
         "ksfraser/ksf-common-db": "^1.0",
@@ -16,7 +17,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Ksfraser\\": "src/Ksfraser/"
+            "Ksfraser\\FrontAccounting\\Rbac\\": "src/Ksfraser/FrontAccounting/Rbac/"
         }
     },
     "autoload-dev": {
@@ -30,17 +31,5 @@
         "platform": {
             "php": "7.4.33"
         }
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../../../ksf_RBAC",
-            "canonical": false
-        },
-        {
-            "type": "path",
-            "url": "../../../Traits",
-            "canonical": false
-        }
-    ]
+    }
 }

@@ -250,30 +250,30 @@ class hooks_ksf_FA_RBAC extends hooks {
     /**
      * Authorize a user action against the RBAC system.
      *
-     * Checks whether the given user has the required capability for a resource.
-     * For create actions (no resource_id), membership in at least one team
-     * is sufficient. For view/edit/delete actions, the specific record access
-     * is checked via FaRecordAccessRepository::findForRecord().
+     * Uses RbacService with voter-based authorization.
+     * Falls back to legacy FaTeamRepository for backward compatibility.
      *
      * @param array &$data {
      *     @var int    $user_id       FA user ID
-     *     @var string $action        'create' | 'view' | 'edit' | 'delete'
+     *     @var string $action        'create' | 'view' | 'edit' | 'delete' | 'list' | 'export'
      *     @var string $module        Module name (e.g. 'customer', 'payment')
      *     @var string $resource_type Resource type (e.g. 'customer', 'payment')
      *     @var int    $resource_id   Optional record ID for view/edit/delete
+     *     @var mixed  $resource      Optional resource object for record-level checks
      * }
      * @param array|null $opts Reserved
      * @return bool|null True=allowed, False=denied, Null=no opinion
      *
-     * @since 1.1.0
+     * @since 2.0
      */
     function authorize(&$data, $opts = null)
     {
-        $userId      = isset($data['user_id']) ? (int) $data['user_id'] : 0;
-        $action      = isset($data['action']) ? (string) $data['action'] : '';
-        $module      = isset($data['module']) ? (string) $data['module'] : '';
-        $resType     = isset($data['resource_type']) ? (string) $data['resource_type'] : '';
-        $resId       = isset($data['resource_id']) ? (int) $data['resource_id'] : null;
+        $userId  = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+        $action  = isset($data['action']) ? (string) $data['action'] : '';
+        $module  = isset($data['module']) ? (string) $data['module'] : '';
+        $resType = isset($data['resource_type']) ? (string) $data['resource_type'] : '';
+        $resId   = isset($data['resource_id']) ? (int) $data['resource_id'] : null;
+        $resource = isset($data['resource']) ? $data['resource'] : null;
 
         if ($userId <= 0 || $action === '') {
             return null;
@@ -281,6 +281,22 @@ class hooks_ksf_FA_RBAC extends hooks {
 
         try {
             $this->_ensureComposerDependencies();
+
+            $rbacService = $this->_getRbacService();
+            $token = \Ksfraser\FrontAccounting\Rbac\Token\FaUserToken::fromSession();
+
+            if ($module !== '' && $resType !== '') {
+                $result = $rbacService->authorize($action, $resource, $token, [
+                    'module' => $module,
+                    'resource_type' => $resType,
+                    'resource_id' => $resId,
+                    'user_id' => $userId,
+                ]);
+
+                if ($result !== null) {
+                    return $result;
+                }
+            }
 
             if (!class_exists('Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository')) {
                 require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaTeamRepository.php';
@@ -296,17 +312,15 @@ class hooks_ksf_FA_RBAC extends hooks {
                 return false;
             }
 
-            // Create actions — user belongs to at least one team
             if ($action === 'create') {
                 return true;
             }
 
-            // Record-level actions (view, edit, delete) — check specific record
             if ($resId !== null && $module !== '' && $resType !== '') {
                 $accessRepo = new \Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
                 $records    = $accessRepo->findForRecord($module, $resType, $resId, $teamIds);
 
-                $capField = 'can_' . $action; // e.g. 'can_view', 'can_edit', 'can_delete'
+                $capField = 'can_' . $action;
 
                 foreach ($records as $access) {
                     $caps = $access->getCapabilities()->toArray();
@@ -318,11 +332,132 @@ class hooks_ksf_FA_RBAC extends hooks {
                 return false;
             }
 
-            // Default — allow (user has teams, no specific record constraint)
             return true;
         } catch (\Exception $e) {
             error_log('KSF RBAC: authorize check failed: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Get the RbacService instance.
+     *
+     * @return \Ksfraser\FrontAccounting\Rbac\RbacService
+     *
+     * @since 2.0
+     */
+    private function _getRbacService()
+    {
+        static $service = null;
+
+        if ($service === null) {
+            $service = new \Ksfraser\FrontAccounting\Rbac\RbacService();
+        }
+
+        return $service;
+    }
+
+    // =======================================================================
+    // FILTER RECORD LIST HOOK — called by list queries
+    //
+    // Modules call:
+    //   $data = ['user_id' => 5, 'module' => 'customer', 'action' => 'list',
+    //            'sql' => "SELECT * FROM debtor_master WHERE 1=1"];
+    //   hook_invoke_all('filterRecordList', $data);
+    //   $sql = $data['sql'];
+    //
+    // Returns modified SQL with WHERE clauses applied
+    // =======================================================================
+
+    /**
+     * Filter a record list based on user access.
+     *
+     * @param array &$data {
+     *     @var int    $user_id
+     *     @var string $module
+     *     @var string $action
+     *     @var string $sql
+     *     @var array  $params
+     * }
+     * @param array|null $opts
+     * @return array|null
+     *
+     * @since 2.0
+     */
+    function filterRecordList(&$data, $opts = null)
+    {
+        $userId  = isset($data['user_id']) ? (int) $data['user_id'] : 0;
+        $module  = isset($data['module']) ? (string) $data['module'] : '';
+        $action  = isset($data['action']) ? (string) $data['action'] : 'list';
+
+        if ($userId <= 0 || $module === '') {
+            return null;
+        }
+
+        try {
+            $this->_ensureComposerDependencies();
+
+            $rbacService = $this->_getRbacService();
+            $token = \Ksfraser\FrontAccounting\Rbac\Token\FaUserToken::fromSession();
+
+            $acl = $rbacService->getModuleAcl($module);
+
+            if (empty($acl)) {
+                return null;
+            }
+
+            if (!isset($acl[$action])) {
+                $action = 'list';
+            }
+
+            if (!isset($acl[$action])) {
+                return null;
+            }
+
+            $allowedRoles = $acl[$action];
+
+            if (!$token->hasAnyRole($allowedRoles)) {
+                if ($token->hasRole('salesman')) {
+                    $data['sql'] = $this->_addSalesmanFilter($data['sql'], $module);
+                } else {
+                    $data['sql'] .= " AND 1=0";
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            error_log('KSF RBAC: filterRecordList failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Add salesman-based filter to SQL.
+     *
+     * @param string $sql
+     * @param string $module
+     * @return string
+     *
+     * @since 2.0
+     */
+    private function _addSalesmanFilter(string $sql, string $module): string
+    {
+        $salesman = $_SESSION['wa_current_user']->salesman ?? '';
+
+        if (empty($salesman)) {
+            return $sql . " AND 1=0";
+        }
+
+        switch ($module) {
+            case 'customer':
+            case 'debtor_trans':
+                if (strpos($sql, 'cust_branch') !== false) {
+                    return $sql . " AND cust_branch.salesman = " . db_escape($salesman);
+                }
+                return $sql . " AND EXISTS (SELECT 1 FROM " . TB_PREF . "cust_branch cb WHERE cb.debtor_no = debtor_master.debtor_no AND cb.salesman = " . db_escape($salesman) . ")";
+
+            default:
+                return $sql;
         }
     }
 
