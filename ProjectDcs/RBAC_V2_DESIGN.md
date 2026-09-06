@@ -310,18 +310,19 @@ Read:
 
 ## 11. Implementation Phases
 
-### Phase 1: Core RBAC
-- [ ] Integrate `zendframework/zend-permissions-rbac`
-- [ ] Implement `RbacService` wrapper
-- [ ] Add role/permission storage
-- [ ] Implement `authorize` hook
-- [ ] Decision strategy support
+### Phase 1: Core RBAC ✅ COMPLETE
+- [x] Integrate `zendframework/zend-permissions-rbac`
+- [x] Implement `RbacService` wrapper
+- [x] Add role/permission storage
+- [x] Implement `authorize` hook
+- [x] Decision strategy support
 
-### Phase 2: Voters
-- [ ] `VoterInterface` definition
+### Phase 2: Voters (In Progress)
+- [x] `VoterInterface` definition ✅
+- [x] `AbstractVoter` base class ✅
 - [ ] Module ACL registry
 - [ ] Voter implementations per module
-- [ ] `filterRecordList` hook
+- [x] `filterRecordList` hook ✅
 
 ### Phase 3: Record-Level
 - [ ] Dynamic assertions
