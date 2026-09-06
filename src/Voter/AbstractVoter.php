@@ -45,7 +45,8 @@ abstract class AbstractVoter implements VoterInterface
             return false;
         }
 
-        if (static::SUPPORTED_CLASS === null) {
+        $supportedClass = $this->getSupportedClassName();
+        if ($supportedClass === null) {
             return true;
         }
 
@@ -53,7 +54,19 @@ abstract class AbstractVoter implements VoterInterface
             return true;
         }
 
-        return is_object($subject) && $subject instanceof static::SUPPORTED_CLASS;
+        return is_object($subject) && $subject instanceof $supportedClass;
+    }
+
+    /**
+     * Get the supported class name.
+     *
+     * @return string|null
+     *
+     * @since 1.0.0
+     */
+    protected function getSupportedClassName(): ?string
+    {
+        return static::SUPPORTED_CLASS;
     }
 
     /**
