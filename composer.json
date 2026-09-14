@@ -5,7 +5,7 @@
     "license": "GPL-3.0",
     "require": {
         "php": ">=7.4",
-        "zendframework/zend-permissions-rbac": "^3.2",
+        "laminas/laminas-permissions-rbac": "^2.9 || ^3.0",
         "defuse/php-encryption": "^2.3",
         "ksfraser/exceptions": "*",
         "ksfraser/traits": "^1.2",

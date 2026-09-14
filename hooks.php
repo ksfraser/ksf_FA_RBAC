@@ -167,8 +167,13 @@ class hooks_ksf_FA_RBAC extends hooks {
         }
 
         try {
+            $provisionerFile = dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Provisioner/UserProvisioner.php';
+
             if (!class_exists('Ksfraser\FrontAccounting\Rbac\Provisioner\UserProvisioner')) {
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Provisioner/UserProvisioner.php';
+                if (!file_exists($provisionerFile)) {
+                    return;
+                }
+                require_once $provisionerFile;
             }
 
             $dbAdapter   = new \ksfraser\CommonDb\Adapter\FaDbAdapter(TB_PREF);
@@ -180,9 +185,72 @@ class hooks_ksf_FA_RBAC extends hooks {
                 (string) $user->name,
                 (string) $user->email
             );
+
+            $this->emitUserProvisioned((int) $user->user, (string) $user->email);
         } catch (\Exception $e) {
             error_log('RBAC user provisioning failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Emit user_provisioned hook for GPG key management.
+     *
+     * @param int $userId
+     * @param string $email
+     * @return void
+     *
+     * @since 1.5.0
+     */
+    private function emitUserProvisioned(int $userId, string $email): void
+    {
+        $data = [
+            'entity_type' => 'user',
+            'entity_id' => (string) $userId,
+            'email' => $email,
+            'user_id' => $userId,
+        ];
+
+        hook_invoke_all('user_provisioned', $data);
+    }
+
+    /**
+     * Emit user_updated hook when user details change.
+     *
+     * @param int $userId
+     * @param array $changes
+     * @return void
+     *
+     * @since 1.5.0
+     */
+    public function emitUserUpdated(int $userId, array $changes = []): void
+    {
+        $data = [
+            'entity_type' => 'user',
+            'entity_id' => (string) $userId,
+            'user_id' => $userId,
+            'changes' => $changes,
+        ];
+
+        hook_invoke_all('user_updated', $data);
+    }
+
+    /**
+     * Emit user_deactivated hook when user is deactivated.
+     *
+     * @param int $userId
+     * @return void
+     *
+     * @since 1.5.0
+     */
+    public function emitUserDeactivated(int $userId): void
+    {
+        $data = [
+            'entity_type' => 'user',
+            'entity_id' => (string) $userId,
+            'user_id' => $userId,
+        ];
+
+        hook_invoke_all('user_deactivated', $data);
     }
 
     // =======================================================================
@@ -285,7 +353,7 @@ class hooks_ksf_FA_RBAC extends hooks {
             $rbacService = $this->_getRbacService();
             $token = \Ksfraser\FrontAccounting\Rbac\Token\FaUserToken::fromSession();
 
-            if ($module !== '' && $resType !== '') {
+            if ($module !== '' || $resType !== '') {
                 $result = $rbacService->authorize($action, $resource, $token, [
                     'module' => $module,
                     'resource_type' => $resType,
@@ -298,41 +366,7 @@ class hooks_ksf_FA_RBAC extends hooks {
                 }
             }
 
-            if (!class_exists('Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository')) {
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaTeamRepository.php';
-                require_once dirname(__FILE__) . '/src/Ksfraser/FrontAccounting/Rbac/Repository/FaRecordAccessRepository.php';
-            }
-
-            $dbAdapter = new \ksfraser\CommonDb\Adapter\FaDbAdapter(TB_PREF);
-            $teamRepo  = new \Ksfraser\FrontAccounting\Rbac\Repository\FaTeamRepository($dbAdapter);
-
-            $teamIds = $teamRepo->findEffectiveTeamIdsForUser((string) $userId);
-
-            if (empty($teamIds)) {
-                return false;
-            }
-
-            if ($action === 'create') {
-                return true;
-            }
-
-            if ($resId !== null && $module !== '' && $resType !== '') {
-                $accessRepo = new \Ksfraser\FrontAccounting\Rbac\Repository\FaRecordAccessRepository($dbAdapter);
-                $records    = $accessRepo->findForRecord($module, $resType, $resId, $teamIds);
-
-                $capField = 'can_' . $action;
-
-                foreach ($records as $access) {
-                    $caps = $access->getCapabilities()->toArray();
-                    if (!empty($caps[$capField])) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-
-            return true;
+            return null;
         } catch (\Exception $e) {
             error_log('KSF RBAC: authorize check failed: ' . $e->getMessage());
             return null;
@@ -352,6 +386,50 @@ class hooks_ksf_FA_RBAC extends hooks {
 
         if ($service === null) {
             $service = new \Ksfraser\FrontAccounting\Rbac\RbacService();
+
+            $service->registerVoter(new \Ksfraser\FrontAccounting\Rbac\Voter\CustomerVoter());
+            $service->registerVoter(new \Ksfraser\FrontAccounting\Rbac\Voter\DebtorVoter());
+            $service->registerVoter(new \Ksfraser\FrontAccounting\Rbac\Voter\SupplierVoter());
+            $service->registerVoter(new \Ksfraser\FrontAccounting\Rbac\Voter\StockVoter());
+            $service->registerVoter(new \Ksfraser\FrontAccounting\Rbac\Voter\ManufacturingVoter());
+
+            $service->registerModuleAcl('customer', [
+                'view' => ['viewer', 'clerk', 'manager', 'admin'],
+                'edit' => ['manager', 'admin'],
+                'delete' => ['admin'],
+                'create' => ['clerk', 'manager', 'admin'],
+                'approve' => ['manager', 'admin'],
+            ]);
+
+            $service->registerModuleAcl('debtor_trans', [
+                'view' => ['clerk', 'manager', 'admin', 'salesman'],
+                'edit' => ['ar_clerk', 'manager', 'admin'],
+                'delete' => ['manager', 'admin'],
+                'approve' => ['ar_clerk', 'manager', 'admin'],
+                'void' => ['manager', 'admin'],
+            ]);
+
+            $service->registerModuleAcl('supplier', [
+                'view' => ['clerk', 'manager', 'admin'],
+                'edit' => ['ap_clerk', 'manager', 'admin'],
+                'delete' => ['manager', 'admin'],
+                'approve' => ['ap_clerk', 'manager', 'admin'],
+                'pay' => ['ap_clerk', 'manager', 'admin'],
+            ]);
+
+            $service->registerModuleAcl('stock', [
+                'view' => ['viewer', 'clerk', 'manager', 'admin'],
+                'edit' => ['clerk', 'manager', 'admin'],
+                'delete' => ['manager', 'admin'],
+                'transfer' => ['warehouse', 'manager', 'admin'],
+            ]);
+
+            $service->registerModuleAcl('manufacturing', [
+                'view' => ['viewer', 'clerk', 'manager', 'admin'],
+                'edit' => ['clerk', 'manager', 'admin'],
+                'release' => ['warehouse', 'manager', 'admin'],
+                'close' => ['manager', 'admin'],
+            ]);
         }
 
         return $service;
