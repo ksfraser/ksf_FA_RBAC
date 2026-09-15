@@ -1,0 +1,12 @@
+Package: ksf_FA_RBAC
+Name: ksf_FA_RBAC
+Description: FrontAccounting adapter for RBAC — Voter-based authorization, role/permission hierarchy, and FA hook integration.
+Author: Kevin Fraser <kevin@ksfraser.com>
+Maintenance: Kevin Fraser <kevin@ksfraser.com>
+Homepage: http://ksfraser.com
+Type: extension
+InstallPath: modules/ksf_FA_RBAC
+Filename: ksf_FA_RBAC
+Version: 2.4.19-0
+FA-Version: 2.4
+PHP-Version: 7.3
